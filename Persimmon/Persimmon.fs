@@ -1,4 +1,4 @@
-﻿module Persimmon
+﻿namespace Persimmon
 
 type NonEmptyList<'T> = 'T * 'T list
 
@@ -25,14 +25,16 @@ type TestBuilder(description: string) =
   member __.Delay(f: unit -> AssertionResult<_>) = f
   member __.Run(f) = f ()
 
-let test description = TestBuilder(description)
+module Test =
+
+  let test description = TestBuilder(description)
  
-let inline checkWith returnValue expected actual =
-  if expected = actual then Success returnValue
-  else Failure (sprintf "Expect: %A\nActual: %A" expected actual, [])
+  let inline checkWith returnValue expected actual =
+    if expected = actual then Success returnValue
+    else Failure (sprintf "Expect: %A\nActual: %A" expected actual, [])
 
-let failure msg = Failure (msg, [])
-let success v = Success v
+  let failure msg = Failure (msg, [])
+  let success v = Success v
 
-let check expected actual = checkWith actual expected actual
-let assertEquals expected actual = checkWith () expected actual
+  let check expected actual = checkWith actual expected actual
+  let assertEquals expected actual = checkWith () expected actual
