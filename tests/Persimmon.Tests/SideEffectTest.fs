@@ -59,3 +59,28 @@ module SideEffectTest =
     do! ``foo bar test`` |> shouldPassed ()
     do! assertEquals 2 !sideEffect2
   }
+
+  let ``bind and sequence`` =
+ 
+    let aCount = ref 0
+    let a = test {
+      do incr aCount
+      return sprintf "acount: %d" !aCount
+    }
+
+    let bCount = ref 0
+    let b = test {
+      let! a = a
+      do incr bCount
+      return sprintf "%s, bcount: %d" a !bCount
+    }
+
+    let f () = test {
+      let! b = b
+      do! assertEquals 1 !bCount
+    }
+
+    test {
+      do! f ()
+      do! f ()
+    }
