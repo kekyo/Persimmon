@@ -16,6 +16,20 @@ module private TestCollectorImpl =
     typ.GetNestedTypes()
     |> Seq.filter (fun typ -> typ.IsNestedPublic && typ.IsClass && not typ.IsGenericTypeDefinition)
 
+  let private enumerableGenericParameterType (typ: Type) =
+    if not typ.IsGenericType then None
+    else
+      let gtd = typ.GetGenericTypeDefinition()
+      if typedefof<System.Collections.Generic.IEnumerable<obj>> <> gtd then None
+      else Some (typ.GetGenericArguments().[0])
+
+  let rec private isTestTargetType (typ: Type) =
+    if typeof<TestMetadata>.IsAssignableFrom typ then true
+    else
+      match enumerableGenericParameterType typ with
+      | Some innerType -> isTestTargetType innerType
+      | None -> false
+
   /// Traverse test instances recursive.
   /// <param name="partialSuggest">Nested sequence children is true: symbol naming is pseudo.</param>
   let rec private fixupAndCollectTests (testObject: obj, symbolName: string, index: int option) = seq {
@@ -77,13 +91,23 @@ module private TestCollectorImpl =
     yield!
       typ.GetProperties(BindingFlags.Static ||| BindingFlags.Public)
       // Ignore setter only property / indexers
-      |> Seq.filter (fun p -> p.CanRead && (p.GetGetMethod() <> null) && (p.GetIndexParameters() |> Array.isEmpty))
+      |> Seq.filter
+        (fun p ->
+          p.CanRead &&
+          (p.GetGetMethod() <> null) &&
+          (p.GetIndexParameters() |> Array.isEmpty) &&
+          (isTestTargetType p.PropertyType))
       |> Seq.collect collectTestsFromProperty
     // For methods (function binding):
     yield!
       typ.GetMethods(BindingFlags.Static ||| BindingFlags.Public)
       // Ignore getter methods / open generic methods / method has parameters
-      |> Seq.filter (fun m -> not m.IsSpecialName && not m.IsGenericMethodDefinition && (m.GetParameters() |> Array.isEmpty))
+      |> Seq.filter
+        (fun m ->
+          not m.IsSpecialName &&
+          not m.IsGenericMethodDefinition &&
+          (m.GetParameters() |> Array.isEmpty) &&
+          (isTestTargetType m.ReturnType))
       |> Seq.collect collectTestsFromMethod
     // For nested modules:
     for nestedType in publicNestedTypes typ do
