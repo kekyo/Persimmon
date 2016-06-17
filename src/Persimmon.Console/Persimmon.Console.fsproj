@@ -9,12 +9,11 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>Persimmon.Console</RootNamespace>
     <AssemblyName>Persimmon.Console</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <TargetFrameworkProfile>Client</TargetFrameworkProfile>
     <TargetFSharpCoreVersion>4.3.1.0</TargetFSharpCoreVersion>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Name>Persimmon.Console</Name>
-    <TargetFrameworkProfile>
-    </TargetFrameworkProfile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -26,7 +25,7 @@
     <WarningLevel>3</WarningLevel>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DocumentationFile>bin\Debug\Persimmon.Console.XML</DocumentationFile>
-    <StartArguments>..\..\..\..\tests\Persimmon.Tests\bin\Debug\Persimmon.Tests.dll ..\..\..\..\tests\Persimmon.Script.Tests\bin\Debug\Persimmon.Script.Tests.dll</StartArguments>
+    <StartArguments>D:\PROJECT\FSharpApiSearch\packages\build\Persimmon.Console\tools\Persimmon.Console.exe "D:\PROJECT\FSharpApiSearch\tests\FSharpApiSearch.Tests\bin\Release\FSharpApiSearch.Tests.dll"</StartArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>

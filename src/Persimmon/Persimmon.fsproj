@@ -10,10 +10,11 @@
     <RootNamespace>Persimmon</RootNamespace>
     <AssemblyName>Persimmon</AssemblyName>
     <TargetFrameworkVersion>v2.0</TargetFrameworkVersion>
-    <TargetFSharpCoreVersion>2.3.0.0</TargetFSharpCoreVersion>
-    <Name>Persimmon</Name>
     <TargetFrameworkProfile>
     </TargetFrameworkProfile>
+    <TargetFSharpCoreVersion>2.3.0.0</TargetFSharpCoreVersion>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <Name>Persimmon</Name>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -70,6 +71,8 @@
     <Compile Include="Internals\RuntimeUtil.fs" />
     <Compile Include="Internals\TestCollector.fs" />
     <Compile Include="Internals\TestRunner.fs" />
+    <Compile Include="Internals\RemotableTestExecutor.fs" />
+    <Compile Include="Internals\TestExecutor.fs" />
     <Compile Include="Internals\Attributes.fs" />
     <None Include="..\..\Persimmon.snk">
       <Link>Persimmon.snk</Link>

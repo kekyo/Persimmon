@@ -65,7 +65,7 @@ type RunResult<'T> = {
   Results: 'T[]
 }
 
-[<Sealed>]
+[<Sealed; NoEquality; NoComparison; AutoSerializable(false)>]
 type TestRunner() =
 
   /// Collect test objects and run tests.

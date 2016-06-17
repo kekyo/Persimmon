@@ -116,7 +116,7 @@ module private TestCollectorImpl =
       else yield new Context(nestedType.Name, testCases) :> TestMetadata
   }
 
-[<Sealed>]
+[<Sealed; NoEquality; NoComparison; AutoSerializable(false)>]
 type TestCollector() =
 
   /// Collect test cases from assembly

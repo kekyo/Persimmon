@@ -9,35 +9,15 @@ open Persimmon.Runner
 open Persimmon.Output
 
 let entryPoint (args: Args) =
-  let watch = Stopwatch()
+
   use progress = if args.NoProgress then IO.TextWriter.Null else Console.Out
-  let runAndReport: (Reporter -> Context seq -> int) =
-    if args.Parallel then
-      fun reporter tests ->
-        async {
-          watch.Start()
-          let! res = TestRunner.asyncRunAllTests reporter.ReportProgress tests
-          watch.Stop()
-          // report
-          reporter.ReportProgress(TestResult.endMarker)
-          reporter.ReportSummary(res.Results)
-          return res.Errors
-        }
-        |> Async.RunSynchronously
-    else
-      fun reporter tests ->
-        watch.Start()
-        let res = TestRunner.runAllTests reporter.ReportProgress tests
-        watch.Stop()
-        // report
-        reporter.ReportProgress(TestResult.endMarker)
-        reporter.ReportSummary(res.Results)
-        res.Errors
+
   let requireFileName, outputs =
     let console = {
       Writer = Console.Out
       Formatter = Formatter.SummaryFormatter.normal watch
     }
+
     match args.Output, args.Format with
     | (Some file, JUnitStyleXml) ->
       let xml = {
@@ -53,6 +33,7 @@ let entryPoint (args: Args) =
       (false, [console; file])
     | (None, Normal) -> (false, [console])
     | (None, JUnitStyleXml) -> (true, [])
+
   use error =
     match args.Error with
     | Some file -> new StreamWriter(file.FullName, false, Encoding.UTF8) :> TextWriter
@@ -75,12 +56,23 @@ let entryPoint (args: Args) =
     reporter.ReportError("xml format option require 'output' option.")
     -2
   elif notFounds |> List.isEmpty then
+
+    let appDomainId = Guid.NewGuid().ToString("N")
+    let name = sprintf "Persimmon.Console-%s" appDomainId
+    let applicationBasePath = Path.GetDirectoryName()
+
+    let info = new AppDomainSetup()
+    info.ApplicationName <- name
+    info.ApplicationBase <- 
+    let 
+
     let asms = founds |> List.map (fun f ->
       let assemblyRef = AssemblyName.GetAssemblyName(f.FullName)
       Assembly.Load(assemblyRef))
     // collect and run
     let tests = TestCollector.collectRootTestObjects asms
     runAndReport reporter tests
+
   else
     reporter.ReportError("file not found: " + (String.Join(", ", notFounds)))
     -2
@@ -96,7 +88,14 @@ type Callback (args: Args, body: Args -> int, failed: FailedCounter) =
     failed.Failed <- body args
 
 let run act =
-  let info = AppDomain.CurrentDomain.SetupInformation
+  let appDomainId = Guid.NewGuid().ToString("N")
+  let name = sprintf "Persimmon.Console-%s" appDomainId
+  let applicationBasePath = Path.GetDirectoryName()
+
+  let info = new AppDomainSetup()
+  info.ApplicationName <- name
+  info.ApplicationBase <- 
+
   let appDomain = AppDomain.CreateDomain("persimmon console domain", null, info)
   try
     appDomain.DoCallBack(act)

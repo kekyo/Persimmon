@@ -11,12 +11,15 @@ type IReporter =
   abstract ReportSummary: ResultNode seq -> unit
   abstract ReportError: string -> unit
 
+[<Sealed; NoEquality; NoComparison; AutoSerializable(false)>]
 type Reporter
   (
     progressPrinter: Printer<ResultNode>,
     summaryPrinter: Printer<ResultNode seq>,
     errorPrinter: Printer<string>
   ) =
+
+  inherit MarshalByRefObject()
 
   member __.ReportProgress(test: ResultNode) =
     progressPrinter.Print(test)
