@@ -11,6 +11,7 @@ open Persimmon.Output
 let entryPoint (args: Args) =
 
   use progress = if args.NoProgress then IO.TextWriter.Null else Console.Out
+  let watch = new Stopwatch()
 
   let requireFileName, outputs =
     let console = {
@@ -57,55 +58,15 @@ let entryPoint (args: Args) =
     -2
   elif notFounds |> List.isEmpty then
 
-    let appDomainId = Guid.NewGuid().ToString("N")
-    let name = sprintf "Persimmon.Console-%s" appDomainId
-    let applicationBasePath = Path.GetDirectoryName()
-
-    let info = new AppDomainSetup()
-    info.ApplicationName <- name
-    info.ApplicationBase <- 
-    let 
-
-    let asms = founds |> List.map (fun f ->
-      let assemblyRef = AssemblyName.GetAssemblyName(f.FullName)
-      Assembly.Load(assemblyRef))
-    // collect and run
-    let tests = TestCollector.collectRootTestObjects asms
-    runAndReport reporter tests
+    let testExecutor = new Persimmon.Internals.TestExecutor()
+    let results = testExecutor.AsyncRunAllTests (founds |> Seq.map (fun file -> file.FullName)) (fun tr -> reporter.ReportProgress tr) false |> Async.RunSynchronously
+    results |> Seq.sumBy (fun result -> result.Errors)
 
   else
     reporter.ReportError("file not found: " + (String.Join(", ", notFounds)))
     -2
 
-type FailedCounter () =
-  inherit MarshalByRefObject()
-  
-  member val Failed = 0 with get, set
-
-[<Serializable>]
-type Callback (args: Args, body: Args -> int, failed: FailedCounter) =
-  member __.Run() =
-    failed.Failed <- body args
-
-let run act =
-  let appDomainId = Guid.NewGuid().ToString("N")
-  let name = sprintf "Persimmon.Console-%s" appDomainId
-  let applicationBasePath = Path.GetDirectoryName()
-
-  let info = new AppDomainSetup()
-  info.ApplicationName <- name
-  info.ApplicationBase <- 
-
-  let appDomain = AppDomain.CreateDomain("persimmon console domain", null, info)
-  try
-    appDomain.DoCallBack(act)
-  finally
-    AppDomain.Unload(appDomain)
-
 [<EntryPoint>]
 let main argv = 
   let args = Args.parse Args.empty (argv |> Array.toList)
-  let failed = FailedCounter()
-  let callback = Callback(args, entryPoint, failed)
-  run (CrossAppDomainDelegate(callback.Run))
-  failed.Failed
+  entryPoint args

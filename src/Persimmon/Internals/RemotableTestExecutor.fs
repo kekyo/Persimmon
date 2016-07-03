@@ -28,6 +28,7 @@ type RemotableTestExecutor() =
   /// <param name="assemblyPath">Target assembly path.</param>
   /// <param name="reporter">Progress reporter.</param>
   /// <param name="isParallel">Parallel execution.</param>
+  /// <returns>RunResult</returns>
   member this.RunTests assemblyPath (reporter: IRemoteReporter) isParallel =
 
     let preloadAssembly = Assembly.ReflectionOnlyLoadFrom assemblyPath
@@ -40,25 +41,6 @@ type RemotableTestExecutor() =
     let runner = new TestRunner()
 
     if isParallel then
-      runner.AsyncRunAllTests callback tests |> Async.RunSynchronously
+      runner.AsyncRunSynchronouslyAllTests reporter.ReportProgress tests |> Async.RunSynchronously
     else
-      runner.RunSynchronouslyAllTests callback tests
-
-      async {
-        watch.Start()
-        let! res = TestRunner.asyncRunAllTests reporter.ReportProgress tests
-        watch.Stop()
-        // report
-        reporter.ReportProgress(TestResult.endMarker)
-        reporter.ReportSummary(res.Results)
-        return res.Errors
-      }
-      |> Async.RunSynchronously
-    else
-      watch.Start()
-      let res = TestRunner.runAllTests reporter.ReportProgress tests
-      watch.Stop()
-      // report
-      reporter.ReportProgress(TestResult.endMarker)
-      reporter.ReportSummary(res.Results)
-      res.Errors
+      runner.RunSynchronouslyAllTests reporter.ReportProgress tests

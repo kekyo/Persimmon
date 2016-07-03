@@ -5,6 +5,7 @@ open System.IO
 open System.Security.Policy
 
 open Persimmon
+open System.Diagnostics
 
 /// <summary>
 /// For internal use only.
@@ -22,7 +23,7 @@ type RemotableReporter(reporter: TestResult -> unit) =
 /// Discovery and execute persimmon based tests in separated AppDomain.
 /// </summary>
 [<Sealed; NoEquality; NoComparison; AutoSerializable(false)>]
-type TestExecutor() =
+type TestExecutor() as this =
 
   let asyncRunTests assemblyPath (reporter: TestResult -> unit) isParallel = async {
 
@@ -53,9 +54,9 @@ type TestExecutor() =
     let appDomain = AppDomain.CreateDomain(name, evidence, info)
 
     try
-      let executor = (appDomain.CreateInstanceFromAndUnwrap(persimmonBasePath, "Persimmon.Internals.RemotableTestExecutor")) :> RemotableTestExecutor
+      let executor = (appDomain.CreateInstanceFromAndUnwrap(persimmonBasePath, "Persimmon.Internals.RemotableTestExecutor")) :?> RemotableTestExecutor
       let remotableReporter = new RemotableReporter(reporter) :> IRemoteReporter
-      executor.RunTests assemblyPath remotableReporter isParallel
+      return executor.RunTests assemblyPath remotableReporter isParallel
 
     finally
       AppDomain.Unload appDomain
@@ -68,8 +69,8 @@ type TestExecutor() =
   /// <param name="reporter">Progress reporter.</param>
   /// <param name="isParallel">Parallel execution.</param>
   member this.AsyncRunTests assemblyPath reporter isParallel = async {
-    do! Async.SwitchToThreadPool()
-    do! asyncRunTests assemblyPath reporter isParallel
+    do! Async.SwitchToNewThread()
+    return! asyncRunTests assemblyPath reporter isParallel
   }
 
   /// <summary>
@@ -78,10 +79,11 @@ type TestExecutor() =
   /// <param name="assemblyPaths">Target assembly paths.</param>
   /// <param name="reporter">Progress reporter.</param>
   /// <param name="isParallel">Parallel execution.</param>
-  member this.RunTests assemblyPaths reporter isParallel =
-    if isParallel then
-      assemblyPaths |> Seq.map (fun path -> asyncRunTests path reporter isParallel) |> Async.Parallel
-    else async {
-      for path in assemblyPaths do
-        do! asyncRunTests path reporter false |> Async.RunSynchronously
-    }
+  member this.AsyncRunAllTests assemblyPaths reporter isParallel = async {
+    do! Async.SwitchToNewThread()
+    let results = new System.Collections.Generic.List<_>()
+    for assemblyPath in assemblyPaths do
+      let! result = asyncRunTests assemblyPath reporter isParallel
+      results.Add(result)
+    return results.ToArray()
+  }
