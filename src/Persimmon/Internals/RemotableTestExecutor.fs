@@ -9,15 +9,6 @@ open Persimmon
 /// <summary>
 /// For internal use only.
 /// </summary>
-type IRemoteReporter =
-  /// <summary>
-  /// For internal use only.
-  /// </summary>
-  abstract ReportProgress : TestResult -> unit
-
-/// <summary>
-/// For internal use only.
-/// </summary>
 [<Sealed; NoEquality; NoComparison; AutoSerializable(false)>]
 type RemotableTestExecutor() =
   inherit MarshalByRefObject()
@@ -33,17 +24,15 @@ type RemotableTestExecutor() =
   /// <param name="assemblyPath">Target assembly path.</param>
   /// <param name="reporter">Progress reporter.</param>
   /// <returns>RunResult</returns>
-  member this.RunTestsByParallel assemblyPath (reporter: IRemoteReporter) =
+  member this.RunTestsByParallel assemblyPath (reporter: Action<obj>) =
 
     Trace.WriteLine(sprintf "RemotableTestExecutor.RunTests: AppDomainId=%A" AppDomain.CurrentDomain.Id)
 
     let targetAssembly = loadAssembly assemblyPath
-
     let collector = new TestCollector()
     let tests = collector.Collect(targetAssembly)
-
     let runner = new TestRunner()
-    runner.AsyncRunAllTestsByParallel reporter.ReportProgress tests |> Async.RunSynchronously
+    runner.AsyncRunAllTestsByParallel (fun tr -> reporter.Invoke(tr)) tests |> Async.RunSynchronously
 
   /// <summary>
   /// For internal use only.
@@ -51,14 +40,12 @@ type RemotableTestExecutor() =
   /// <param name="assemblyPath">Target assembly path.</param>
   /// <param name="reporter">Progress reporter.</param>
   /// <returns>RunResult</returns>
-  member this.RunTestsBySequential assemblyPath (reporter: IRemoteReporter) =
+  member this.RunTestsBySequential assemblyPath (reporter: Action<obj>) =
 
     Trace.WriteLine(sprintf "RemotableTestExecutor.RunTestsBySequential: AppDomainId=%A" AppDomain.CurrentDomain.Id)
 
     let targetAssembly = loadAssembly assemblyPath
-
     let collector = new TestCollector()
     let tests = collector.Collect(targetAssembly)
-
     let runner = new TestRunner()
-    runner.RunAllTestsBySequential reporter.ReportProgress tests
+    runner.AsyncRunAllTestsBySequential (fun rn -> reporter.Invoke(rn)) tests |> Async.RunSynchronously

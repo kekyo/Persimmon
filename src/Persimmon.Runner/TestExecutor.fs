@@ -15,13 +15,21 @@ open Persimmon.Output
 [<Sealed; NoEquality; NoComparison; AutoSerializable(false)>]
 type TestExecutor() =
 
-  let runTestsByParallel assemblyPath (reporter: IReporter) =
+  let asyncRunTestsByParallel assemblyPath (reporter: IReporter) =
     let testExecutor = new Persimmon.Internals.TestExecutor()
     testExecutor.AsyncRunTestsByParallel assemblyPath (fun tr -> reporter.ReportProgress tr)
     
-  let runTestsBySequential assemblyPath (reporter: IReporter) =
+  let asyncRunTestsBySequential assemblyPath (reporter: IReporter) =
     let testExecutor = new Persimmon.Internals.TestExecutor()
     testExecutor.AsyncRunTestsBySequential assemblyPath (fun tr -> reporter.ReportProgress tr)
+
+  let asyncSequential xs = async {
+    let list = new ResizeArray<'T>()
+    for asy in xs do
+      let! v = asy
+      list.Add(v)
+    return list.ToArray()
+  }
 
   let reportSummaries (reporter: IReporter) (results: Persimmon.Internals.RunResult<#ResultNode> seq) =
     reporter.ReportProgress(TestResult.endMarker)
@@ -35,12 +43,17 @@ type TestExecutor() =
   /// </summary>
   /// <param name="assemblyPath">Target assembly path.</param>
   /// <param name="reporter">Progress reporter.</param> 
-  /// <param name="isParallel">Execute parallel tests.</param> 
+  /// <param name="isParallel">Enable parallel execution.</param> 
   /// <returns>Number of errors</returns>
   member this.AsyncRunTests assemblyPath reporter isParallel = async {
-    let! result = runTestsByParallel assemblyPath reporter
-    do reportSummaries reporter [result]
-    return result.Errors
+    if isParallel then
+      let! result = asyncRunTestsByParallel assemblyPath reporter
+      do reportSummaries reporter [result]
+      return result.Errors
+    else
+      let! result = asyncRunTestsBySequential assemblyPath reporter
+      do reportSummaries reporter [result]
+      return result.Errors
   }
  
   /// <summary>
@@ -48,13 +61,21 @@ type TestExecutor() =
   /// </summary>
   /// <param name="assemblyPaths">Target assembly paths.</param>
   /// <param name="reporter">Progress reporter.</param>
-  /// <param name="isParallel">Execute parallel tests.</param> 
+  /// <param name="isParallel">Enable parallel execution.</param> 
   /// <returns>Number of errors</returns>
   member this.AsyncRunAllTests assemblyPaths reporter isParallel = async {
-    let! results =
-      assemblyPaths
-      |> Seq.map (fun assemblyPath -> runTestsByParallel assemblyPath reporter)
-      |> Async.Parallel
-    do reportSummaries reporter results
-    return results |> Seq.sumBy (fun result -> result.Errors)
+    if isParallel then
+      let! results =
+        assemblyPaths
+        |> Seq.map (fun assemblyPath -> asyncRunTestsByParallel assemblyPath reporter)
+        |> Async.Parallel
+      do reportSummaries reporter results
+      return results |> Seq.sumBy (fun result -> result.Errors)
+    else
+      let! results =
+        assemblyPaths
+        |> Seq.map (fun assemblyPath -> asyncRunTestsBySequential assemblyPath reporter)
+        |> Async.Parallel
+      do reportSummaries reporter results
+      return results |> Seq.sumBy (fun result -> result.Errors)
   }

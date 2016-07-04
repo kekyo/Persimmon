@@ -42,7 +42,9 @@ module private TestRunnerImpl =
     | Context context ->
       context.Children |> Seq.map (fun child -> async {
         let! results = asyncRunTestBySequential progress child
-        return new ContextResult(context, results) :> ResultNode
+        let result = new ContextResult(context, results) :> ResultNode
+        do progress result
+        return result
       }) |> asyncSequential
     | TestCase testCase -> async {
         let! result = testCase.AsyncRun()

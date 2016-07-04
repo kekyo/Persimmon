@@ -56,10 +56,7 @@ let asyncEntryPoint (args: Args) = async {
     return -2
   elif notFounds |> List.isEmpty then
     let testExecutor = new TestExecutor()
-    if args.Parallel then
-      return! testExecutor.AsyncRunAllTestsByParallel (founds |> Seq.map (fun file -> file.FullName)) reporter
-    else
-      return! testExecutor.AsyncRunAllTestsByParallel (founds |> Seq.map (fun file -> file.FullName)) reporter
+    return! testExecutor.AsyncRunAllTests (founds |> Seq.map (fun file -> file.FullName)) reporter args.Parallel
   else
     do reporter.ReportError("file not found: " + (String.Join(", ", notFounds)))
     return -2
