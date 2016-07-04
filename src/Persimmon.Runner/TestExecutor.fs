@@ -7,41 +7,54 @@ open System.Diagnostics
 open System.Reflection
 
 open Persimmon
-open Persimmon.Internals
-open Persimmon.Runner
 open Persimmon.Output
 
+/// <summary>
+/// Discovery and execute persimmon based tests.
+/// </summary>
 [<Sealed; NoEquality; NoComparison; AutoSerializable(false)>]
 type TestExecutor() =
-  inherit MarshalByRefObject()
 
-  member this.RunTests assemblyPath (reporter: IReporter) isParallel =
+  let runTestsByParallel assemblyPath (reporter: IReporter) =
+    let testExecutor = new Persimmon.Internals.TestExecutor()
+    testExecutor.AsyncRunTestsByParallel assemblyPath (fun tr -> reporter.ReportProgress tr)
+    
+  let runTestsBySequential assemblyPath (reporter: IReporter) =
+    let testExecutor = new Persimmon.Internals.TestExecutor()
+    testExecutor.AsyncRunTestsBySequential assemblyPath (fun tr -> reporter.ReportProgress tr)
 
-    let preloadAssembly = Assembly.ReflectionOnlyLoadFrom assemblyPath
-    let assemblyName = preloadAssembly.FullName
-    let targetAssembly = Assembly.Load assemblyName
+  let reportSummaries (reporter: IReporter) (results: Persimmon.Internals.RunResult<#ResultNode> seq) =
+    reporter.ReportProgress(TestResult.endMarker)
+    reporter.ReportSummary(
+      results
+      |> Seq.collect (fun result -> result.Results)
+      |> Seq.map (fun result -> result :> ResultNode))
 
-    let collector = new TestCollector()
-    let tests = collector.Collect(targetAssembly)
-
-    let watch = new Stopwatch()
-
-    if isParallel then
-      async {
-        watch.Start()
-        let! res = TestRunner.asyncRunAllTests reporter.ReportProgress tests
-        watch.Stop()
-        // report
-        reporter.ReportProgress(TestResult.endMarker)
-        reporter.ReportSummary(res.Results)
-        return res.Errors
-      }
-      |> Async.RunSynchronously
-    else
-      watch.Start()
-      let res = TestRunner.runAllTests reporter.ReportProgress tests
-      watch.Stop()
-      // report
-      reporter.ReportProgress(TestResult.endMarker)
-      reporter.ReportSummary(res.Results)
-      res.Errors
+  /// <summary>
+  /// Discovery and execute persimmon based tests.
+  /// </summary>
+  /// <param name="assemblyPath">Target assembly path.</param>
+  /// <param name="reporter">Progress reporter.</param> 
+  /// <param name="isParallel">Execute parallel tests.</param> 
+  /// <returns>Number of errors</returns>
+  member this.AsyncRunTests assemblyPath reporter isParallel = async {
+    let! result = runTestsByParallel assemblyPath reporter
+    do reportSummaries reporter [result]
+    return result.Errors
+  }
+ 
+  /// <summary>
+  /// Discovery and execute persimmon based tests.
+  /// </summary>
+  /// <param name="assemblyPaths">Target assembly paths.</param>
+  /// <param name="reporter">Progress reporter.</param>
+  /// <param name="isParallel">Execute parallel tests.</param> 
+  /// <returns>Number of errors</returns>
+  member this.AsyncRunAllTests assemblyPaths reporter isParallel = async {
+    let! results =
+      assemblyPaths
+      |> Seq.map (fun assemblyPath -> runTestsByParallel assemblyPath reporter)
+      |> Async.Parallel
+    do reportSummaries reporter results
+    return results |> Seq.sumBy (fun result -> result.Errors)
+  }

@@ -18,14 +18,16 @@ module private TestRunnerImpl =
     | TestCase testCase ->
       yield testCase.AsyncRun
    }
+
   /// Entire full parallelism test execution.
-  and asyncRunTest progress test =
+  and asyncRunTestByParallel progress test =
     traverseAsyncRunner test |> Seq.map (fun asyncRun -> async {
       let! result = asyncRun()
       do progress result
       return result
     }) |> Async.Parallel
 
+  /// Sequential execution async workflow.
   let asyncSequential xs = async {
     let list = new ResizeArray<'T>()
     for asy in xs do
@@ -35,11 +37,11 @@ module private TestRunnerImpl =
   }
 
   // Oh... very hard...
-  let rec asyncRunSynchronouslyTest progress test =
+  let rec asyncRunTestBySequential progress test =
     match test with
     | Context context ->
       context.Children |> Seq.map (fun child -> async {
-        let! results = asyncRunSynchronouslyTest progress child
+        let! results = asyncRunTestBySequential progress child
         return new ContextResult(context, results) :> ResultNode
       }) |> asyncSequential
     | TestCase testCase -> async {
@@ -68,17 +70,17 @@ type RunResult<'T> = {
 [<Sealed; NoEquality; NoComparison; AutoSerializable(false)>]
 type TestRunner() =
 
-  /// Collect test objects and run tests.
-  member __.AsyncRunAllTests progress tests = async {
-    let! testResultsList = tests |> Seq.map (TestRunnerImpl.asyncRunTest progress) |> TestRunnerImpl.asyncSequential
+  /// Collect test objects and run tests by parallel.
+  member __.AsyncRunAllTestsByParallel progress tests = async {
+    let! testResultsList = tests |> Seq.map (TestRunnerImpl.asyncRunTestByParallel progress) |> TestRunnerImpl.asyncSequential
     let testResults = testResultsList |> Seq.collect (fun tr -> tr) |> Seq.toArray
     let errors = testResults |> Seq.sumBy TestRunnerImpl.countErrors
     return { Errors = errors; Results = testResults }
   }
 
-  /// Collect test objects and run tests.
-  member __.AsyncRunSynchronouslyAllTests progress tests = async {
-    let! testResultsList = tests |> Seq.map (TestRunnerImpl.asyncRunSynchronouslyTest progress) |> TestRunnerImpl.asyncSequential
+  /// Collect test objects and run tests by synchronously.
+  member __.AsyncRunAllTestsBySequential progress tests = async {
+    let! testResultsList = tests |> Seq.map (TestRunnerImpl.asyncRunTestBySequential progress) |> TestRunnerImpl.asyncSequential
     let testResults = testResultsList |> Seq.collect (fun tr -> tr) |> Seq.toArray
     let errors = testResults |> Seq.sumBy TestRunnerImpl.countErrors
     return { Errors = errors; Results = testResults }
@@ -87,9 +89,9 @@ type TestRunner() =
   /// Collect test objects and run tests.
   /// TODO: Omit all synch caller.
   //[<Obsolete>]
-  member __.RunSynchronouslyAllTests progress tests =
+  member __.RunAllTestsBySequential progress tests =
     // Keep forward sequence.
-    let testResultsList = tests |> Seq.map (TestRunnerImpl.asyncRunSynchronouslyTest progress) |> Seq.map Async.RunSynchronously
+    let testResultsList = tests |> Seq.map (TestRunnerImpl.asyncRunTestBySequential progress) |> Seq.map Async.RunSynchronously
     let testResults = testResultsList |> Seq.collect (fun tr -> tr) |> Seq.toArray
     let errors = testResults |> Seq.sumBy TestRunnerImpl.countErrors
     { Errors = errors; Results = testResults }
@@ -117,7 +119,7 @@ type TestRunner() =
       // Include only fqtn
       |> Seq.filter (fun testCase -> containsKey testCase.UniqueName)
       // Map test case to async runner (with callback side effect)
-      |> Seq.map (fun testCase -> TestRunnerImpl.asyncRunTest callback.Invoke testCase)
+      |> Seq.map (fun testCase -> TestRunnerImpl.asyncRunTestByParallel callback.Invoke testCase)
       // Full parallelism
       |> Async.Parallel
       // Synchronous execution

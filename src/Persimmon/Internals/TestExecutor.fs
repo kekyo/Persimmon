@@ -25,7 +25,7 @@ type RemotableReporter(reporter: TestResult -> unit) =
 [<Sealed; NoEquality; NoComparison; AutoSerializable(false)>]
 type TestExecutor() as this =
 
-  let asyncRunTests assemblyPath (reporter: TestResult -> unit) isParallel = async {
+  let runTestsBySeparatedAppDomain assemblyPath (runner: RemotableTestExecutor -> 'T) =
 
     let appDomainId = Guid.NewGuid().ToString("N")
     let name = sprintf "Persimmon-%s" appDomainId
@@ -55,35 +55,31 @@ type TestExecutor() as this =
 
     try
       let executor = (appDomain.CreateInstanceFromAndUnwrap(persimmonBasePath, "Persimmon.Internals.RemotableTestExecutor")) :?> RemotableTestExecutor
-      let remotableReporter = new RemotableReporter(reporter) :> IRemoteReporter
-      return executor.RunTests assemblyPath remotableReporter isParallel
+      runner executor
 
     finally
       AppDomain.Unload appDomain
+
+  /// <summary>
+  /// Discovery and execute persimmon based tests by parallelism in separated AppDomain.
+  /// </summary>
+  /// <param name="assemblyPath">Target assembly path.</param>
+  /// <param name="reporter">Progress reporter.</param> 
+  /// <returns>RunResult</returns>
+  member this.AsyncRunTestsByParallel assemblyPath reporter = async {
+    do! Async.SwitchToNewThread()
+    let remoteReporter = new RemotableReporter(reporter)
+    return runTestsBySeparatedAppDomain assemblyPath (fun executor -> executor.RunTestsByParallel assemblyPath remoteReporter)
   }
 
   /// <summary>
-  /// Discovery and execute persimmon based tests in separated AppDomain.
+  /// Discovery and execute persimmon based tests by sequential in separated AppDomain.
   /// </summary>
   /// <param name="assemblyPath">Target assembly path.</param>
   /// <param name="reporter">Progress reporter.</param>
-  /// <param name="isParallel">Parallel execution.</param>
-  member this.AsyncRunTests assemblyPath reporter isParallel = async {
+  /// <returns>RunResult</returns>
+  member this.AsyncRunTestsBySequential assemblyPath reporter = async {
     do! Async.SwitchToNewThread()
-    return! asyncRunTests assemblyPath reporter isParallel
-  }
-
-  /// <summary>
-  /// Discovery and execute persimmon based tests in separated AppDomain.
-  /// </summary>
-  /// <param name="assemblyPaths">Target assembly paths.</param>
-  /// <param name="reporter">Progress reporter.</param>
-  /// <param name="isParallel">Parallel execution.</param>
-  member this.AsyncRunAllTests assemblyPaths reporter isParallel = async {
-    do! Async.SwitchToNewThread()
-    let results = new System.Collections.Generic.List<_>()
-    for assemblyPath in assemblyPaths do
-      let! result = asyncRunTests assemblyPath reporter isParallel
-      results.Add(result)
-    return results.ToArray()
+    let remoteReporter = new RemotableReporter(reporter)
+    return runTestsBySeparatedAppDomain assemblyPath (fun executor -> executor.RunTestsBySequential assemblyPath remoteReporter)
   }

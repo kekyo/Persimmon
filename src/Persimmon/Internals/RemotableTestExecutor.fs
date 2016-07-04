@@ -22,25 +22,43 @@ type IRemoteReporter =
 type RemotableTestExecutor() =
   inherit MarshalByRefObject()
 
+  let loadAssembly assemblyPath =
+    let preloadAssembly = Assembly.ReflectionOnlyLoadFrom assemblyPath
+    let assemblyName = preloadAssembly.FullName
+    Assembly.Load assemblyName
+
   /// <summary>
   /// For internal use only.
   /// </summary>
   /// <param name="assemblyPath">Target assembly path.</param>
   /// <param name="reporter">Progress reporter.</param>
-  /// <param name="isParallel">Parallel execution.</param>
   /// <returns>RunResult</returns>
-  member this.RunTests assemblyPath (reporter: IRemoteReporter) isParallel =
+  member this.RunTestsByParallel assemblyPath (reporter: IRemoteReporter) =
 
-    let preloadAssembly = Assembly.ReflectionOnlyLoadFrom assemblyPath
-    let assemblyName = preloadAssembly.FullName
-    let targetAssembly = Assembly.Load assemblyName
+    Trace.WriteLine(sprintf "RemotableTestExecutor.RunTests: AppDomainId=%A" AppDomain.CurrentDomain.Id)
+
+    let targetAssembly = loadAssembly assemblyPath
 
     let collector = new TestCollector()
     let tests = collector.Collect(targetAssembly)
 
     let runner = new TestRunner()
+    runner.AsyncRunAllTestsByParallel reporter.ReportProgress tests |> Async.RunSynchronously
 
-    if isParallel then
-      runner.AsyncRunSynchronouslyAllTests reporter.ReportProgress tests |> Async.RunSynchronously
-    else
-      runner.RunSynchronouslyAllTests reporter.ReportProgress tests
+  /// <summary>
+  /// For internal use only.
+  /// </summary>
+  /// <param name="assemblyPath">Target assembly path.</param>
+  /// <param name="reporter">Progress reporter.</param>
+  /// <returns>RunResult</returns>
+  member this.RunTestsBySequential assemblyPath (reporter: IRemoteReporter) =
+
+    Trace.WriteLine(sprintf "RemotableTestExecutor.RunTestsBySequential: AppDomainId=%A" AppDomain.CurrentDomain.Id)
+
+    let targetAssembly = loadAssembly assemblyPath
+
+    let collector = new TestCollector()
+    let tests = collector.Collect(targetAssembly)
+
+    let runner = new TestRunner()
+    runner.RunAllTestsBySequential reporter.ReportProgress tests

@@ -19,8 +19,6 @@ type Reporter
     errorPrinter: Printer<string>
   ) =
 
-  inherit MarshalByRefObject()
-
   member __.ReportProgress(test: ResultNode) =
     progressPrinter.Print(test)
 
